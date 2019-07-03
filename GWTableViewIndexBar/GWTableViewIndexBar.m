@@ -13,8 +13,8 @@ static const CGFloat kDefaultIndexFontSize = 25.0;     //默认指引字体大�
 static const CGFloat kDefaultTitleHeight = 20.0;       //默认字体高度
 static const CGFloat kShowIndexBarAnimationTime = 0.5; //显示和隐藏indexBar的动画时长
 static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示器的动画时长
-//static  NSString * const kTableViewKVOContentSetName = @"";
-//static  NSString * const kTableViewKVOContentSetName = @"";
+//static  NSString * const kTableViewKVOContentOffSetName = @"";
+static  NSString * const kTableViewKVODraggingName = @"dragging";
 @interface GWTableViewIndexBar()
 /*! @brief 存储titleLabel数组，Label复用 */
 @property(nonatomic, strong) NSMutableArray *titleLabelArray;
@@ -77,6 +77,10 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
     _indexTitleLabel.backgroundColor = [UIColor clearColor];
     [_indexTitleBgView addSubview:_indexTitleLabel];
 }
+
+- (void)dealloc{
+    [_tableView removeObserver:self forKeyPath:kTableViewKVODraggingName];
+}
 #pragma mark -- 布局
 - (void)layoutSubviews{
     [super layoutSubviews];
@@ -121,6 +125,10 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
     for (UILabel *label in _titleLabelArray) {
         [label removeFromSuperview];
     }
+    //如果当前tableview可见cell的indexpath数据不为空，初始化当前选中的index为第一个可见indexpath的section
+    if (self.tableView.indexPathsForVisibleRows.count > 0) {
+        self.currentIndex = self.tableView.indexPathsForVisibleRows[0].section;
+    }
     //如果索引数组大于最小显示个数则创建Label并显示
     if (count >= _minimumShowCount) {
         for (NSInteger i = 0; i < count; i++) {
@@ -164,15 +172,27 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
 }
 
 //- (void)setTableView:(UITableView *)tableView{
-//    [_tableView removeObserver:self forKeyPath:kTableViewKVOName];
+//    [_tableView removeObserver:self forKeyPath:@"contentOffset"];
 //    _tableView = tableView;
-//    [_tableView addObserver:self forKeyPath:kTableViewKVOName options:NSKeyValueObservingOptionNew context:nil];
+//    [_tableView addObserver:self forKeyPath:@"contentOffset" options:NSKeyValueObservingOptionOld|NSKeyValueObservingOptionNew context:nil];
 //}
 //#pragma mark -- kvo
 //- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context{
-//    if([keyPath isEqualToString:kTableViewKVOName])
+//    if([keyPath isEqualToString:@"contentOffset"])
 //    {
-//        [self refreshSleepTimeStatus];
+//        NSValue *oldvalue = change[NSKeyValueChangeOldKey];
+//        NSValue *newvalue = change[NSKeyValueChangeNewKey];
+//        CGFloat oldoffset_y = oldvalue.UIOffsetValue.vertical;
+//        CGFloat newoffset_y = newvalue.UIOffsetValue.vertical;
+//        NSLog(@"Old:%f\nNew:%f",oldoffset_y,newoffset_y);
+////        BOOL isDragging = [change objectForKey:@"new"];
+//        if (self.tableView.isDragging) {
+//            [self tableViewDidScroll];
+//        }else{
+//            [self tableViewDidEndScroll];
+//        }
+//    }else{
+//        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
 //    }
 //}
 #pragma mark -- events
@@ -198,7 +218,12 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
     CGPoint touchPoint = [touch locationInView:self];
     if (touchPoint.x < 0) return;
     //通过触摸的位置计算出选中的索引
-    NSInteger index = touchPoint.y / (long)self.titleHeight;
+    NSInteger index = (touchPoint.y - self.contentInset.top) / (long)self.titleHeight;
+    if (index < 0) {
+        index = 0;
+    }else if (index >= self.indexTitlesArray.count){
+        index = self.indexTitlesArray.count - 1;
+    }
     [self didSelectRowIndex:index byTouch:YES];
 }
 /**
@@ -208,7 +233,7 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
  */
 - (void)didSelectRowIndex:(NSInteger)index byTouch:(BOOL)isTouch{
     //如果选中的索引超出标题数组，或者和当前选中的相同则直接return
-    if (index > self.titleLabelArray.count || index < 0 || index == self.currentIndex) {
+    if (index >= self.titleLabelArray.count || index < 0 || index == self.currentIndex) {
         return;
     }
     if (self.currentIndex != index) {
@@ -249,6 +274,23 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
 }
 #pragma mark -- scroll
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView{
+    [self tableViewDidScroll];
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
+    [self tableViewDidEndScroll];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
+    if (decelerate == NO) {
+        [self scrollViewDidEndDecelerating:scrollView];
+    }
+}
+
+/**
+ tableView滚动
+ */
+- (void)tableViewDidScroll{
     //开始滚动，首先判断索引栏是常驻显示还是
     //计算出当前滚动到的section
     NSInteger index = self.tableView.indexPathsForVisibleRows[0].section;
@@ -259,19 +301,14 @@ static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示�
         [self showIndexBar];
     }
 }
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
+/**
+ tableView停止滚动
+ */
+- (void)tableViewDidEndScroll{
     if (kGWTableViewIndexBarScrollShowStyle == self.showStyle && !self.hidden) {
         [self performSelector:@selector(dismissIndexBar) withObject:nil afterDelay:1.0];
     }
 }
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
-    if (decelerate == NO) {
-        [self scrollViewDidEndDecelerating:scrollView];
-    }
-}
-
 #pragma mark -- animation
 /**
  显示索引栏

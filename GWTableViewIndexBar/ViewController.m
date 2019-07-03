@@ -31,13 +31,14 @@
 }
 #pragma mark -- initDatas
 - (void)_initDatas{
-    NSString *string = @"ABCDEFGHIJKLMN";
+    NSString *string = @"ABCDEFGHIJKLMNABCDEFGHIJKLMNABCDEFGHIJKLMNABCDEFGHIJKLMN";
     NSMutableArray *sectionArray = [NSMutableArray arrayWithCapacity:string.length];
     NSMutableDictionary *dataDic = [NSMutableDictionary dictionaryWithCapacity:string.length];
     for (NSInteger i = 0; i < string.length; i++) {
         NSString *key = [string substringWithRange:NSMakeRange(i, 1)];
-        
-        [sectionArray addObject:key];
+        if (![sectionArray containsObject:key]) {
+            [sectionArray addObject:key];
+        }
         if ([dataDic.allKeys containsObject:key]) {
             NSArray *rowArray = [dataDic objectForKey:key];
             NSMutableArray *arrayM = [NSMutableArray arrayWithArray:rowArray];
@@ -78,7 +79,7 @@
     indexBar.normalTitleColor = [UIColor blackColor];//配置索引栏标题正常色
     indexBar.highlighTitletColor = [UIColor blueColor];//配置索引栏标题高亮色
     indexBar.titleFont = [UIFont boldSystemFontOfSize:12.0];//配置索引栏标题字体大小
-    indexBar.showStyle = kGWTableViewIndexBarPermanentShowStyle;//配置索引栏风格
+    indexBar.showStyle = kGWTableViewIndexBarScrollShowStyle;//配置索引栏风格
     indexBar.contentInset = UIEdgeInsetsMake(10.0, 0, 10.0, 0);//配置索引栏内间距
     indexBar.isCorner = YES;//切圆角
     indexBar.tableView = self.tableView;//绑定tableview
@@ -131,16 +132,19 @@
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView{
     //调用索引栏对应方法即可
     [self.indexBar scrollViewDidScroll:scrollView];
+//    NSLog(@"isDragging：%d", self.tableView.isDragging);
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
     //调用索引栏对应方法即可
     [self.indexBar scrollViewDidEndDecelerating:scrollView];
+//    NSLog(@"isDragging：%d", self.tableView.isDragging);
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
     //调用索引栏对应方法即可
     [self.indexBar scrollViewDidEndDragging:scrollView willDecelerate:decelerate];
+//    NSLog(@"isDragging：%d", self.tableView.isDragging);
 }
 #pragma mark -- GWTableViewIndexBarDelegate
 - (void)tableViewIndexBar:(GWTableViewIndexBar *)indexBar didSelectRowAtIndex:(NSInteger)index{
