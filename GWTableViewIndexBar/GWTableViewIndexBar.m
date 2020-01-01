@@ -11,10 +11,11 @@
 static const CGFloat kDefaultTitleFontSize = 13.0;     //默认字体大小
 static const CGFloat kDefaultIndexFontSize = 25.0;     //默认指引字体大小
 static const CGFloat kDefaultTitleHeight = 20.0;       //默认字体高度
-static const CGFloat kShowIndexBarAnimationTime = 0.5; //显示和隐藏indexBar的动画时长
+static const CGFloat kShowIndexBarAnimationTime = 0.5; //显示indexBar的动画时长
+static const CGFloat kDisimissIndexBarAnimationTime = 1.0; //隐藏indexBar的动画时长
 static const CGFloat kIndicatorAnimationTime = 0.5;    //显示和隐藏指示器的动画时长
-//static  NSString * const kTableViewKVOContentOffSetName = @"";
-static  NSString * const kTableViewKVODraggingName = @"dragging";
+static  NSString * const kTableViewKVOContentOffSetName = @"contentOffset";
+
 @interface GWTableViewIndexBar()
 /*! @brief 存储titleLabel数组，Label复用 */
 @property(nonatomic, strong) NSMutableArray *titleLabelArray;
@@ -79,7 +80,7 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
 }
 
 - (void)dealloc{
-    [_tableView removeObserver:self forKeyPath:kTableViewKVODraggingName];
+    [_tableView removeObserver:self forKeyPath:kTableViewKVOContentOffSetName];
 }
 #pragma mark -- 布局
 - (void)layoutSubviews{
@@ -171,30 +172,13 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
     [self reloadData];
 }
 
-//- (void)setTableView:(UITableView *)tableView{
-//    [_tableView removeObserver:self forKeyPath:@"contentOffset"];
-//    _tableView = tableView;
-//    [_tableView addObserver:self forKeyPath:@"contentOffset" options:NSKeyValueObservingOptionOld|NSKeyValueObservingOptionNew context:nil];
-//}
-//#pragma mark -- kvo
-//- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context{
-//    if([keyPath isEqualToString:@"contentOffset"])
-//    {
-//        NSValue *oldvalue = change[NSKeyValueChangeOldKey];
-//        NSValue *newvalue = change[NSKeyValueChangeNewKey];
-//        CGFloat oldoffset_y = oldvalue.UIOffsetValue.vertical;
-//        CGFloat newoffset_y = newvalue.UIOffsetValue.vertical;
-//        NSLog(@"Old:%f\nNew:%f",oldoffset_y,newoffset_y);
-////        BOOL isDragging = [change objectForKey:@"new"];
-//        if (self.tableView.isDragging) {
-//            [self tableViewDidScroll];
-//        }else{
-//            [self tableViewDidEndScroll];
-//        }
-//    }else{
-//        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-//    }
-//}
+- (void)setTableView:(UITableView *)tableView{
+    [_tableView removeObserver:self forKeyPath:kTableViewKVOContentOffSetName];
+    _tableView = tableView;
+    [_tableView addObserver:self forKeyPath:kTableViewKVOContentOffSetName options:NSKeyValueObservingOptionOld|NSKeyValueObservingOptionNew context:nil];
+}
+
+
 #pragma mark -- events
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesBegan:touches withEvent:event];
@@ -204,6 +188,32 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
     [super touchesMoved:touches withEvent:event];
     [self handleTouches:touches withEvent:event];
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
+    [super touchesEnded:touches withEvent:event];
+    [self handleEndTouches:touches withEvent:event];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
+    [super touchesCancelled:touches withEvent:event];
+    [self handleEndTouches:touches withEvent:event];
+}
+
+/**
+处理触摸结束和取消事件
+
+@param touches touch数组
+@param event   event
+*/
+- (void)handleEndTouches:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event{
+    //延迟隐藏指示器
+    [self performSelector:@selector(dismissIndecatorTitle) withObject:nil afterDelay:1.0];
+    [self dismissIndecatorTitle];
+    //根据是否滑动显示延迟隐藏indexbar
+    if (kGWTableViewIndexBarScrollShowStyle == self.showStyle && !self.hidden) {
+        [self performSelector:@selector(dismissIndexBar) withObject:nil afterDelay:1.0];
+    }
 }
 
 /**
@@ -226,6 +236,7 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
     }
     [self didSelectRowIndex:index byTouch:YES];
 }
+
 /**
  选中索引操作
  @param index   索引的位置
@@ -239,7 +250,6 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
     if (self.currentIndex != index) {
         if (kGWTableViewIndexBarScrollShowStyle == self.showStyle) {
             [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(dismissIndexBar) object:nil];
-            [self performSelector:@selector(dismissIndexBar) withObject:nil afterDelay:1.0];
         }
         //保存当前选中的index
         self.currentIndex = index;
@@ -272,21 +282,34 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
         }
     }
 }
-#pragma mark -- scroll
-- (void)scrollViewDidScroll:(UIScrollView *)scrollView{
-    [self tableViewDidScroll];
-}
+#pragma mark -- kvo
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context{
+    if([keyPath isEqualToString:kTableViewKVOContentOffSetName])
+    {
+        NSValue *oldvalue = change[NSKeyValueChangeOldKey];
+        NSValue *newvalue = change[NSKeyValueChangeNewKey];
+        CGFloat oldoffset_y = oldvalue.UIOffsetValue.vertical;
+        CGFloat newoffset_y = newvalue.UIOffsetValue.vertical;
+        NSLog(@"Old:%f\nNew:%f",oldoffset_y,newoffset_y);
+        NSLog(@"isTracking:%d---isDragging:%d----isDecelerating:%d", self.tableView.isTracking, self.tableView.isDragging, self.tableView.isDecelerating);
+        // 这个if条件的意思是scrollView的滑动不是由手指拖拽产生
+        if (!self.tableView.isDragging && !self.tableView.isDecelerating) {return;}
 
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
-    [self tableViewDidEndScroll];
-}
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
-    if (decelerate == NO) {
-        [self scrollViewDidEndDecelerating:scrollView];
+        // 当滑到边界时，继续通过scrollView的bouces效果滑动时，直接return
+        if (self.tableView.contentOffset.y < 0 || self.tableView.contentOffset.y > self.tableView.contentSize.height - self.tableView.bounds.size.height) {
+            return;
+        }
+        //如果contenoffset不变了说明停止滚动了，否则还在滚动
+        if(newoffset_y == oldoffset_y){
+            [self tableViewDidEndScroll];
+        }else{
+            [self tableViewDidScroll];
+        }
+    }else{
+        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
     }
 }
-
+#pragma mark -- scroll
 /**
  tableView滚动
  */
@@ -332,14 +355,13 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
     if (self.hidden) {
         return;
     }
-    [UIView animateWithDuration:kShowIndexBarAnimationTime delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+    [UIView animateWithDuration:kDisimissIndexBarAnimationTime delay:0.0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
         self.alpha = 0.0;
     } completion:^(BOOL finished) {
         self.alpha = 1.0;
         self.hidden = YES;
     }];
 }
-
 
 /**
  显示指示器
@@ -350,17 +372,17 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
 - (void)showIndecatorWithTitle:(NSString *)titleStr andcenterY:(CGFloat)centerY{
     //取消隐藏指示器的方法
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(dismissIndecatorTitle) object:nil];
-    //根据指示器的中心Y值修改frame
+    //根据指示器的中心Y值计算出Center
     CGPoint center = self.indexTitleBgView.center;
     center.y = centerY;
     self.indexTitleBgView.center = center;
     self.indexTitleLabel.text = titleStr;
-    self.indexTitleBgView.alpha = 1.0;
-    //如果指示器背景视图已添加到父视图，说明已经显示
+    //如果指示器背景视图已添加到父视图，说明已经显示，只用做位移动画，否则做透明度动画
     if (self.indexTitleBgView.superview) {
-        //用户操作完后延迟执行隐藏指示器
-        [self performSelector:@selector(dismissIndecatorTitle) withObject:nil afterDelay:1.0];
+        [self.superview bringSubviewToFront:self.indexTitleBgView];
+        self.indexTitleBgView.alpha = 1.0;
     }else{
+        self.indexTitleBgView.center = center;
         [self.superview addSubview:self.indexTitleBgView];
         [self.superview bringSubviewToFront:self.indexTitleBgView];
         self.indexTitleBgView.alpha = 0.0;
@@ -382,14 +404,16 @@ static  NSString * const kTableViewKVODraggingName = @"dragging";
  隐藏指示器
  */
 - (void)dismissIndecatorTitle{
-    [UIView animateWithDuration:kIndicatorAnimationTime
-                          delay:0.0
-                        options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionCurveEaseOut
-                     animations:^{
-                         self.indexTitleBgView.alpha = 0.0;
-                     } completion:^(BOOL finished) {
-                         self.indexTitleBgView.alpha = 0.0;
-                         [self.indexTitleBgView removeFromSuperview];
-                     }];
+    if (self.indexTitleBgView.superview) {
+        [UIView animateWithDuration:kIndicatorAnimationTime
+             delay:0.0
+           options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionCurveEaseOut
+        animations:^{
+            self.indexTitleBgView.alpha = 0.0;
+        } completion:^(BOOL finished) {
+            self.indexTitleBgView.alpha = 0.0;
+            [self.indexTitleBgView removeFromSuperview];
+        }];
+    }
 }
 @end

@@ -128,24 +128,7 @@
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section{
     return self.sectionArray[section];
 }
-#pragma mark -- UITableViewDelegate
-- (void)scrollViewDidScroll:(UIScrollView *)scrollView{
-    //调用索引栏对应方法即可
-    [self.indexBar scrollViewDidScroll:scrollView];
-//    NSLog(@"isDragging：%d", self.tableView.isDragging);
-}
 
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
-    //调用索引栏对应方法即可
-    [self.indexBar scrollViewDidEndDecelerating:scrollView];
-//    NSLog(@"isDragging：%d", self.tableView.isDragging);
-}
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate{
-    //调用索引栏对应方法即可
-    [self.indexBar scrollViewDidEndDragging:scrollView willDecelerate:decelerate];
-//    NSLog(@"isDragging：%d", self.tableView.isDragging);
-}
 #pragma mark -- GWTableViewIndexBarDelegate
 - (void)tableViewIndexBar:(GWTableViewIndexBar *)indexBar didSelectRowAtIndex:(NSInteger)index{
     NSLog(@"选中了%ld", index);

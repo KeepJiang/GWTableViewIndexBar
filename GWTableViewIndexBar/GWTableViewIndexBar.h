@@ -58,11 +58,6 @@ typedef NS_ENUM(NSInteger, kGWTableViewIndexBarShowStyle){
 /*! @brief 索引文字数组 */
 @property(nonatomic, strong) NSArray<NSString *> *indexTitlesArray;
 
-- (void)scrollViewDidScroll:(UIScrollView *)scrollView;
-
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView;
-
-- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate;
 @end
 
 NS_ASSUME_NONNULL_END
